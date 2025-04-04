@@ -55,7 +55,10 @@ add_executable(
     $<TARGET_OBJECTS:common_objects>
     ${TEST_SOURCES}
 )
-add_compile_definitions(PRIVATE BUILD_TESTS=1)
+add_compile_definitions(
+    PRIVATE
+    BUILD_TESTS=1
+)
 
 # Add the tests to be run
 gtest_discover_tests(test-all)

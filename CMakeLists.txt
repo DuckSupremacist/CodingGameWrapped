@@ -34,8 +34,7 @@ target_compile_options(
     PUBLIC -O3
            -Wall
            -Woverloaded-virtual
-#           -Wno-unused-function
-#           -Wmissing-declarations
+           # -Wno-unused-function -Wmissing-declarations
            -Werror
 )
 

@@ -6,16 +6,13 @@
 
 int testMain(); // Forward declaration of the main function
 
-struct TestParams
-{
+struct TestParams {
     size_t depth;
     uint32_t init_hash;
     uint32_t expected_output;
 };
 
-class MainIntegrationTest : public ::testing::TestWithParam<TestParams>
-{
-};
+class MainIntegrationTest : public ::testing::TestWithParam<TestParams> {};
 
 // Test cases
 INSTANTIATE_TEST_SUITE_P(
@@ -38,12 +35,11 @@ INSTANTIATE_TEST_SUITE_P(
     )
 );
 
-TEST_P(MainIntegrationTest, BasicCase)
-{
+TEST_P(MainIntegrationTest, BasicCase) {
     /* =============== */
     /* Retrieve Params */
     /* =============== */
-    const TestParams &params = GetParam();
+    const TestParams& params = GetParam();
 
     // Process the hash to be passed to the program
     std::ostringstream hash_digits;
@@ -52,8 +48,7 @@ TEST_P(MainIntegrationTest, BasicCase)
 
     std::stringstream input_stream;
     input_stream << params.depth << "\n";
-    for (char c: hash_str)
-    {
+    for (char c : hash_str) {
         input_stream << c << "\n";
     }
 
@@ -62,8 +57,8 @@ TEST_P(MainIntegrationTest, BasicCase)
     /* ============ */
     std::stringstream output_stream;
 
-    std::streambuf *cin_old_buf = std::cin.rdbuf();
-    std::streambuf *cout_old_buf = std::cout.rdbuf();
+    std::streambuf* cin_old_buf = std::cin.rdbuf();
+    std::streambuf* cout_old_buf = std::cout.rdbuf();
 
     std::cin.rdbuf(input_stream.rdbuf());
     std::cout.rdbuf(output_stream.rdbuf());
@@ -83,5 +78,5 @@ TEST_P(MainIntegrationTest, BasicCase)
     /* Check the output */
     /* ================ */
     EXPECT_EQ(params.expected_output, std::stoi(output_stream.str()))
-                    << "Program output did not match the expected result.";
+        << "Program output did not match the expected result.";
 }

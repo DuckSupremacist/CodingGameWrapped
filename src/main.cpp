@@ -1,11 +1,9 @@
 #include <iostream>
 #include <string>
 
-uint32_t getInitialHash()
-{
+uint32_t getInitialHash() {
     uint32_t hash = 0;
-    for (int i = 1e8; i > 0; i /= 10)
-    {
+    for (int i = 1e8; i > 0; i /= 10) {
         int value;
         std::cin >> value;
         std::cin.ignore();
