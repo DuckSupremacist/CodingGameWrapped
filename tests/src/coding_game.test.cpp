@@ -6,13 +6,15 @@
 
 int testMain(); // Forward declaration of the main function
 
-struct TestParams {
+struct TestParams
+{
     size_t depth;
     uint32_t init_hash;
     uint32_t expected_output;
 };
 
-class MainIntegrationTest : public ::testing::TestWithParam<TestParams> {};
+class MainIntegrationTest : public ::testing::TestWithParam<TestParams>
+{};
 
 // Test cases
 INSTANTIATE_TEST_SUITE_P(
