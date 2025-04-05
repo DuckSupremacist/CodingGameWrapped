@@ -71,7 +71,6 @@ repos:
     rev: v1.3.5
     hooks:
       - id: clang-tidy
-        exclude: '(tests/.*|main_test.cpp|tools/.*)'
         entry: |-
           bash -c '
             if [[ -n "$@" ]]; then
@@ -85,8 +84,7 @@ repos:
                   -x c++ \
                   -Iinclude \
                   -Ibuild/include \
-                  -I/usr/local/include/thc/ \
-                  -I/usr/local/include/alb/
+                  -Itests/include \
 
               done
             fi

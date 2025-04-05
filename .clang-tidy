@@ -87,19 +87,23 @@ Checks: >
 
 WarningsAsErrors: "*"
 CheckOptions:
+  - key: performance-unnecessary-value-param.AllowedTypes
+    value: 'std::shared_ptr'
   - key: readability-identifier-naming.VariableCase # e.g., int my_variable;
     value: lower_case
   - key: readability-identifier-naming.PrivateMemberPrefix # e.g., private: int MyClass::_my_variable;
     value: '_'
   - key: readability-identifier-naming.ClassMemberPrefix # e.g., private: static int MyClass::_my_variable;
     value: '_'
+  - key: readability-identifier-naming.PrivateMemberIgnoredRegexp # e.g., Ignore private const variables
+    value: '[A-Z_\d]+'
   - key: readability-identifier-naming.ClassCase # e.g., class MyClass;
     value: CamelCase
   - key: readability-identifier-naming.FunctionCase # e.g., void myFunction();
     value: camelBack
   - key: readability-identifier-naming.ConstexprVariableCase # e.g., constexpr int MY_CONSTANT = 42;
     value: UPPER_CASE
-  - key: readability-identifier-naming.ConstantCase # e.g., const int MY_CONSTANT 42
+  - key: readability-identifier-naming.GlobalConstantCase # e.g., const int MY_CONSTANT 42
     value: UPPER_CASE
   - key: readability-identifier-naming.MacroDefinitionCase # e.g., #define MY_MACRO 42
     value: UPPER_CASE
