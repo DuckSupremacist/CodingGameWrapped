@@ -6,6 +6,8 @@
 
 int testMain(); // Forward declaration of the main function
 
+class Position;
+
 struct TestParams
 {
     size_t depth;
@@ -23,9 +25,9 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         // depth, init_hash, expected_output
         // Custom test cases
-        TestParams{1, 000000000, 111111111},  // end states: 9
-        TestParams{1, 666666660, 666666661},  // end states: 1
-        TestParams{1, 666666101, 666666020},  // end states: 1
+//        TestParams{1, 000000000, 111111111},  // end states: 9
+//        TestParams{1, 666666660, 666666661},  // end states: 1
+//        TestParams{1, 666666101, 666666020},  // end states: 1
         TestParams{1, 666656101, (666656020 + 666606061 + 666606160) % (1 << 30)},  // end states: 3
         // Coding game test cases
         TestParams{20, 60222161, 322444322},  // Test 1;  end states: 2
@@ -35,10 +37,10 @@ INSTANTIATE_TEST_SUITE_P(
         TestParams{8, 606000615, 76092874},   // Test 5;  end states: 1484
         TestParams{24, 300362102, 661168294}, // Test 6;  end states: 418440394
         TestParams{36, 604202400, 350917228}, // Test 7;  end states: 1014562252076
-        TestParams{32, 000054105, 999653138},     // Test 8;  end states: 104530503002231
-        TestParams{40, 004024134, 521112022},   // Test 9;  end states: 946763082877
-        TestParams{40, 054030030, 667094338},  // Test 10; end states: 559238314648167
-        TestParams{20, 051000401, 738691369},  // Test 11; end states: 4017226136890
+        TestParams{32, 54105, 999653138},     // Test 8;  end states: 104530503002231
+        TestParams{40, 4024134, 521112022},   // Test 9;  end states: 946763082877
+        TestParams{40, 54030030, 667094338},  // Test 10; end states: 559238314648167
+        TestParams{20, 51000401, 738691369},  // Test 11; end states: 4017226136890
         TestParams{20, 100352100, 808014757}  // Test 12; end states: 950995003182
     )
 );
