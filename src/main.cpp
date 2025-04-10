@@ -9,7 +9,7 @@ using grid_t = uint64_t;
 using depth_t = uint8_t;
 using sum_t = uint8_t;
 using tile_t = uint8_t;
-using tile_index_t = long;
+using tile_index_t = size_t;
 
 using hash_t = uint32_t;
 using hash_key_t = grid_t;
@@ -61,6 +61,7 @@ class Position
     {
         std::array<grid_t, MAX_NEXT_POSITION_COUNT> positions;
         size_t count;
+
         void emplace_back(grid_t position) // NOLINT
         {
             if (count < MAX_NEXT_POSITION_COUNT)
@@ -68,6 +69,7 @@ class Position
                 positions[count++] = position;
             }
         }
+
         [[nodiscard]] bool empty() const
         {
             return count == 0;
@@ -83,10 +85,12 @@ class Position
             return {};
         }
 
-        const grid_t& offset_a = _grid;
+        const grid_t &offset_a = _grid;
         const grid_t offset_b = offset_a >> (TILE_GRID_OFFSET * 2);
         const grid_t offset_c = offset_a >> (TILE_GRID_OFFSET * 4);
         const grid_t offset_d = offset_a >> (TILE_GRID_OFFSET * 6);
+
+        const grid_t value_present = offset_a | offset_a >> 1 | offset_a >> 2;
 
         enum : sum_t
         {
@@ -106,13 +110,26 @@ class Position
         {
             sum_t sum_code;
             grid_t success_mask;
+
             constexpr SumCombo(sum_t sum, grid_t mask)
-                : sum_code(sum), success_mask(mask) {}
+                : sum_code(sum), success_mask(mask)
+            {}
         };
         constexpr grid_t MASK_OFFSET_A = LOOSE_TILE_MASK;
         constexpr grid_t MASK_OFFSET_B = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 2);
         constexpr grid_t MASK_OFFSET_C = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 4);
         constexpr grid_t MASK_OFFSET_D = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 6);
+
+        constexpr grid_t CHECK_PRESENCE_MASK =
+            1ul |
+            (1ul << TILE_GRID_OFFSET) |
+            (1ul << (TILE_GRID_OFFSET * 2)) |
+            (1ul << (TILE_GRID_OFFSET * 3)) |
+            (1ul << (TILE_GRID_OFFSET * 4)) |
+            (1ul << (TILE_GRID_OFFSET * 5)) |
+            (1ul << (TILE_GRID_OFFSET * 6)) |
+            (1ul << (TILE_GRID_OFFSET * 7)) |
+            (1ul << (TILE_GRID_OFFSET * 8));
 
         constexpr grid_t MASK_SUM_AB = MASK_OFFSET_A | MASK_OFFSET_B;
         constexpr grid_t MASK_SUM_AC = MASK_OFFSET_A | MASK_OFFSET_C;
@@ -126,30 +143,31 @@ class Position
         constexpr grid_t MASK_SUM_BCD = MASK_OFFSET_B | MASK_OFFSET_C | MASK_OFFSET_D;
         constexpr grid_t MASK_SUM_ABCD = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_C | MASK_OFFSET_D;
 
+
         const std::array<std::pair<SumCombo, grid_t>, 11> sums = {
-            std::pair{ SumCombo{SUM_AB, MASK_SUM_AB}, offset_a + offset_b },
-            std::pair{ SumCombo{SUM_AC, MASK_SUM_AC}, offset_a + offset_c },
-            std::pair{ SumCombo{SUM_AD, MASK_SUM_AD}, offset_a + offset_d },
-            std::pair{ SumCombo{SUM_BC, MASK_SUM_BC}, offset_b + offset_c },
-            std::pair{ SumCombo{SUM_BD, MASK_SUM_BD}, offset_b + offset_d },
-            std::pair{ SumCombo{SUM_CD, MASK_SUM_CD}, offset_c + offset_d },
-            std::pair{ SumCombo{SUM_ABC, MASK_SUM_ABC}, offset_a + offset_b + offset_c },
-            std::pair{ SumCombo{SUM_ABD, MASK_SUM_ABD}, offset_a + offset_b + offset_d },
-            std::pair{ SumCombo{SUM_ACD, MASK_SUM_ACD}, offset_a + offset_c + offset_d },
-            std::pair{ SumCombo{SUM_BCD, MASK_SUM_BCD}, offset_b + offset_c + offset_d },
-            std::pair{ SumCombo{SUM_ABCD, MASK_SUM_ABCD}, offset_a + offset_b + offset_c + offset_d },
+            std::pair{SumCombo{SUM_AB, MASK_SUM_AB}, offset_a + offset_b},
+            std::pair{SumCombo{SUM_AC, MASK_SUM_AC}, offset_a + offset_c},
+            std::pair{SumCombo{SUM_AD, MASK_SUM_AD}, offset_a + offset_d},
+            std::pair{SumCombo{SUM_BC, MASK_SUM_BC}, offset_b + offset_c},
+            std::pair{SumCombo{SUM_BD, MASK_SUM_BD}, offset_b + offset_d},
+            std::pair{SumCombo{SUM_CD, MASK_SUM_CD}, offset_c + offset_d},
+            std::pair{SumCombo{SUM_ABC, MASK_SUM_ABC}, offset_a + offset_b + offset_c},
+            std::pair{SumCombo{SUM_ABD, MASK_SUM_ABD}, offset_a + offset_b + offset_d},
+            std::pair{SumCombo{SUM_ACD, MASK_SUM_ACD}, offset_a + offset_c + offset_d},
+            std::pair{SumCombo{SUM_BCD, MASK_SUM_BCD}, offset_b + offset_c + offset_d},
+            std::pair{SumCombo{SUM_ABCD, MASK_SUM_ABCD}, offset_a + offset_b + offset_c + offset_d},
         };
 
         constexpr std::array<std::pair<sum_t, size_t>, GRID_SIZE> TILE_SUM_COMBINATIONS = {
-            std::pair{SUM_AB,    1},
-            std::pair{SUM_ABC,   0},
-            std::pair{SUM_AC,    1},
-            std::pair{SUM_ACD,   0},
-            std::pair{SUM_ABCD,  1},
-            std::pair{SUM_ABD,   2},
-            std::pair{SUM_AC,    3},
-            std::pair{SUM_ABC,   4},
-            std::pair{SUM_AB,    5},
+            std::pair{SUM_AB, 1},
+            std::pair{SUM_ABC, 0},
+            std::pair{SUM_AC, 1},
+            std::pair{SUM_ACD, 0},
+            std::pair{SUM_ABCD, 1},
+            std::pair{SUM_ABD, 2},
+            std::pair{SUM_AC, 3},
+            std::pair{SUM_ABC, 4},
+            std::pair{SUM_AB, 5},
         };
 
         NextPositions next_positions{};
@@ -161,15 +179,24 @@ class Position
                 continue;
             }
             bool found_sum = false;
-            for (const auto& [sum_combo, sum]: sums)
+            for (const auto &[sum_combo, sum]: sums)
             {
-                if ((sum_combo.sum_code & TILE_SUM_COMBINATIONS[i].first) == sum_combo.sum_code) // Verify sum is valid for this tile
+                if ((sum_combo.sum_code & TILE_SUM_COMBINATIONS[i].first) ==
+                    sum_combo.sum_code) // Verify sum is valid for this tile
                 {
-                    tile_t sum_value = sum >> (TILE_SUM_COMBINATIONS[i].second * TILE_GRID_OFFSET) & TIGHT_TILE_MASK;
+                    const grid_t target_mask =
+                        sum_combo.success_mask << (TILE_SUM_COMBINATIONS[i].second * TILE_GRID_OFFSET);
+                    const grid_t target_presence_mask = target_mask & CHECK_PRESENCE_MASK;
+                    if ((value_present & target_presence_mask) != target_presence_mask)
+                    {
+                        // No value to sum
+                        continue;
+                    }
+                    tile_t sum_value = sum >> (TILE_SUM_COMBINATIONS[i].second * TILE_GRID_OFFSET) & LOOSE_TILE_MASK;
                     if (sum_value <= 6)
                     {
                         found_sum = true;
-                        grid_t new_grid = _grid & ~(sum_combo.success_mask << (TILE_SUM_COMBINATIONS[i].second * TILE_GRID_OFFSET));
+                        grid_t new_grid = _grid & ~target_mask;
                         new_grid |= (static_cast<grid_t>(sum_value) << (i * TILE_GRID_OFFSET));
                         new_grid -= (1ul << DEPTH_SHIFT);
                         next_positions.emplace_back(new_grid);
@@ -192,13 +219,18 @@ class Position
     void printGrid(grid_t grid) const
     {
         std::cerr << "Depth: " << (grid >> DEPTH_SHIFT) << std::endl;
-        std::cerr << "Grid: ";
+        std::cerr << "Grid:" << std::endl << "\t";
         for (size_t i = GRID_SIZE; i > 0; i--)
         {
             std::cerr << std::dec << ((grid >> ((i - 1) * TILE_GRID_OFFSET)) & LOOSE_TILE_MASK) << " ";
+            if (i % GRID_SIDE_SIZE == 1)
+            {
+                std::cerr << std::endl << "\t";
+            }
         }
         std::cerr << std::endl;
     }
+
     void printGrid() const
     {
         printGrid(_grid);
@@ -211,10 +243,7 @@ class Position
 
     Position(grid_t position) : _grid(position)
     {
-        if (_grid == 0)
-        {
-            return;
-        }
+//        printGrid();
         calculateHash();
     }
 
@@ -237,7 +266,7 @@ class Position
             }
             statistics.states_stored_in_hash_map++;
             statistics.end_states_count++;
-            _hash_lookup[_grid] = hash;
+//            _hash_lookup[_grid] = hash;
             return hash;
         }
         for (size_t i = 0; i < next_positions.count; i++)
@@ -248,7 +277,7 @@ class Position
         }
         hash &= HASH_MASK;
         statistics.states_stored_in_hash_map++;
-        _hash_lookup[_grid] = hash;
+//        _hash_lookup[_grid] = hash;
         return hash;
     }
 };
