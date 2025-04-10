@@ -25,10 +25,10 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         // depth, init_hash, expected_output
         // Custom test cases
-//        TestParams{1, 000000000, 111111111},  // end states: 9
-//        TestParams{1, 666666660, 666666661},  // end states: 1
-//        TestParams{1, 666666101, 666666020},  // end states: 1
-        TestParams{1, 666656101, (666656020 + 666606061 + 666606160) % (1 << 30)},  // end states: 3
+        TestParams{1, 000000000, 111111111},                                       // end states: 9
+        TestParams{1, 666666660, 666666661},                                       // end states: 1
+        TestParams{1, 666666101, 666666020},                                       // end states: 1
+        TestParams{1, 666656101, (666656020 + 666606061 + 666606160) % (1 << 30)}, // end states: 3
         // Coding game test cases
         TestParams{20, 60222161, 322444322},  // Test 1;  end states: 2
         TestParams{20, 506450064, 951223336}, // Test 2;  end states: 6
