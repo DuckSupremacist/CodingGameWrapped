@@ -3,6 +3,7 @@
 #include <span>
 #include <string>
 #include <unordered_map>
+#include <thread>
 
 using grid_t = uint64_t;
 using depth_t = uint8_t;
@@ -53,7 +54,6 @@ class Position
 {
   private:
     const grid_t _grid;
-    hash_t _hash;
 
     static std::unordered_map<hash_key_t, hash_t> _hash_lookup;
 
@@ -76,14 +76,14 @@ class Position
 
     [[nodiscard]] constexpr NextPositions nextPositions() const
     {
-        depth_t depth = _grid >> DEPTH_SHIFT;
+        depth_t depth = (_grid >> DEPTH_SHIFT);
         // If the distance from depth is 0, return an empty vector
         if (depth == 0)
         {
             return {};
         }
 
-        const grid_t offset_a = (_grid & GRID_MASK);
+        const grid_t& offset_a = _grid;
         const grid_t offset_b = offset_a >> (TILE_GRID_OFFSET * 2);
         const grid_t offset_c = offset_a >> (TILE_GRID_OFFSET * 4);
         const grid_t offset_d = offset_a >> (TILE_GRID_OFFSET * 6);
@@ -102,29 +102,54 @@ class Position
             SUM_BCD = 0b0111,
             SUM_ABCD = 0b1111,
         };
-        const std::array<std::pair<sum_t, grid_t>, 11> sums = {
-            std::pair{ SUM_AB, offset_a + offset_b },
-            std::pair{ SUM_AC, offset_a + offset_c },
-            std::pair{ SUM_AD, offset_a + offset_d },
-            std::pair{ SUM_BC, offset_b + offset_c },
-            std::pair{ SUM_BD, offset_b + offset_d },
-            std::pair{ SUM_CD, offset_c + offset_d },
-            std::pair{ SUM_ABC, offset_a + offset_b + offset_c },
-            std::pair{ SUM_ABD, offset_a + offset_b + offset_d },
-            std::pair{ SUM_ACD, offset_a + offset_c + offset_d },
-            std::pair{ SUM_BCD, offset_b + offset_c + offset_d },
-            std::pair{ SUM_ABCD, offset_a + offset_b + offset_c + offset_d },
+        struct SumCombo
+        {
+            sum_t sum_code;
+            grid_t success_mask;
+            constexpr SumCombo(sum_t sum, grid_t mask)
+                : sum_code(sum), success_mask(mask) {}
         };
+        constexpr grid_t MASK_OFFSET_A = LOOSE_TILE_MASK;
+        constexpr grid_t MASK_OFFSET_B = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 2);
+        constexpr grid_t MASK_OFFSET_C = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 4);
+        constexpr grid_t MASK_OFFSET_D = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 6);
+
+        constexpr grid_t MASK_SUM_AB = MASK_OFFSET_A | MASK_OFFSET_B;
+        constexpr grid_t MASK_SUM_AC = MASK_OFFSET_A | MASK_OFFSET_C;
+        constexpr grid_t MASK_SUM_AD = MASK_OFFSET_A | MASK_OFFSET_D;
+        constexpr grid_t MASK_SUM_BC = MASK_OFFSET_B | MASK_OFFSET_C;
+        constexpr grid_t MASK_SUM_BD = MASK_OFFSET_B | MASK_OFFSET_D;
+        constexpr grid_t MASK_SUM_CD = MASK_OFFSET_C | MASK_OFFSET_D;
+        constexpr grid_t MASK_SUM_ABC = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_C;
+        constexpr grid_t MASK_SUM_ABD = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_D;
+        constexpr grid_t MASK_SUM_ACD = MASK_OFFSET_A | MASK_OFFSET_C | MASK_OFFSET_D;
+        constexpr grid_t MASK_SUM_BCD = MASK_OFFSET_B | MASK_OFFSET_C | MASK_OFFSET_D;
+        constexpr grid_t MASK_SUM_ABCD = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_C | MASK_OFFSET_D;
+
+        const std::array<std::pair<SumCombo, grid_t>, 11> sums = {
+            std::pair{ SumCombo{SUM_AB, MASK_SUM_AB}, offset_a + offset_b },
+            std::pair{ SumCombo{SUM_AC, MASK_SUM_AC}, offset_a + offset_c },
+            std::pair{ SumCombo{SUM_AD, MASK_SUM_AD}, offset_a + offset_d },
+            std::pair{ SumCombo{SUM_BC, MASK_SUM_BC}, offset_b + offset_c },
+            std::pair{ SumCombo{SUM_BD, MASK_SUM_BD}, offset_b + offset_d },
+            std::pair{ SumCombo{SUM_CD, MASK_SUM_CD}, offset_c + offset_d },
+            std::pair{ SumCombo{SUM_ABC, MASK_SUM_ABC}, offset_a + offset_b + offset_c },
+            std::pair{ SumCombo{SUM_ABD, MASK_SUM_ABD}, offset_a + offset_b + offset_d },
+            std::pair{ SumCombo{SUM_ACD, MASK_SUM_ACD}, offset_a + offset_c + offset_d },
+            std::pair{ SumCombo{SUM_BCD, MASK_SUM_BCD}, offset_b + offset_c + offset_d },
+            std::pair{ SumCombo{SUM_ABCD, MASK_SUM_ABCD}, offset_a + offset_b + offset_c + offset_d },
+        };
+
         constexpr std::array<std::pair<sum_t, size_t>, GRID_SIZE> TILE_SUM_COMBINATIONS = {
-            std::pair{SUM_AB,   1},
-            std::pair{SUM_ABC,  0},
-            std::pair{SUM_AC,   1},
-            std::pair{SUM_ACD,  0},
-            std::pair{SUM_ABCD, 1},
-            std::pair{SUM_ABD,  2},
-            std::pair{SUM_BD,   1},
-            std::pair{SUM_BCD,  2},
-            std::pair{SUM_CD,   1},
+            std::pair{SUM_AB,    1},
+            std::pair{SUM_ABC,   0},
+            std::pair{SUM_AC,    1},
+            std::pair{SUM_ACD,   0},
+            std::pair{SUM_ABCD,  1},
+            std::pair{SUM_ABD,   2},
+            std::pair{SUM_AC,    3},
+            std::pair{SUM_ABC,   4},
+            std::pair{SUM_AB,    5},
         };
 
         NextPositions next_positions{};
@@ -136,17 +161,17 @@ class Position
                 continue;
             }
             bool found_sum = false;
-            for (const auto& [sum_code, sum]: sums)
+            for (const auto& [sum_combo, sum]: sums)
             {
-                if ((sum_code & TILE_SUM_COMBINATIONS[i].first) == sum_code) // Verify sum is valid for this tile
+                if ((sum_combo.sum_code & TILE_SUM_COMBINATIONS[i].first) == sum_combo.sum_code) // Verify sum is valid for this tile
                 {
                     tile_t sum_value = sum >> (TILE_SUM_COMBINATIONS[i].second * TILE_GRID_OFFSET) & TIGHT_TILE_MASK;
                     if (sum_value <= 6)
                     {
                         found_sum = true;
-                        grid_t new_grid = _grid | (static_cast<grid_t>(sum_value) << (i * TILE_GRID_OFFSET));
+                        grid_t new_grid = _grid & ~(sum_combo.success_mask << (TILE_SUM_COMBINATIONS[i].second * TILE_GRID_OFFSET));
+                        new_grid |= (static_cast<grid_t>(sum_value) << (i * TILE_GRID_OFFSET));
                         new_grid -= (1ul << DEPTH_SHIFT);
-                        printGrid(new_grid);
                         next_positions.emplace_back(new_grid);
                     }
                 }
@@ -155,46 +180,10 @@ class Position
             {
                 grid_t new_grid = _grid | (1 << (i * TILE_GRID_OFFSET));
                 new_grid -= (1ul << DEPTH_SHIFT);
-                printGrid(new_grid);
                 next_positions.emplace_back(new_grid);
             }
         }
         return next_positions;
-    }
-
-    void calculateHash()
-    {
-        if (_hash_lookup.find(_grid) != _hash_lookup.end())
-        {
-            statistics.states_retrieved_from_hash_map++;
-            _hash = _hash_lookup[_grid];
-            return;
-        }
-
-        NextPositions next_positions = nextPositions();
-        if (next_positions.empty())
-        {
-            _hash = 0;
-            for (size_t i = 0; i < GRID_SIZE; i++)
-            {
-                tile_t tile = (_grid >> (i * TILE_GRID_OFFSET)) & TIGHT_TILE_MASK;
-                _hash = _hash * 10 + tile;
-            }
-            statistics.states_stored_in_hash_map++;
-            statistics.end_states_count++;
-            _hash_lookup[_grid] = _hash;
-            return;
-        }
-        _hash = 0;
-        for (size_t i = 0; i < next_positions.count; i++)
-        {
-            grid_t next_grid = next_positions.positions[i];
-            Position next_position(next_grid);
-            _hash += next_position.getHash();
-        }
-        _hash |= HASH_MASK;
-        statistics.states_stored_in_hash_map++;
-        _hash_lookup[_grid] = _hash;
     }
 
   public:
@@ -226,13 +215,41 @@ class Position
         {
             return;
         }
-        printGrid();
         calculateHash();
     }
 
-    [[nodiscard]] uint32_t getHash() const
+    hash_t calculateHash()
     {
-        return _hash;
+        if (_hash_lookup.find(_grid) != _hash_lookup.end())
+        {
+            statistics.states_retrieved_from_hash_map++;
+            return _hash_lookup[_grid];
+        }
+
+        hash_t hash = 0;
+        NextPositions next_positions = nextPositions();
+        if (next_positions.empty())
+        {
+            for (size_t i = 0; i < GRID_SIZE; i++)
+            {
+                tile_t tile = (_grid >> (i * TILE_GRID_OFFSET)) & TIGHT_TILE_MASK;
+                hash = hash * 10 + tile;
+            }
+            statistics.states_stored_in_hash_map++;
+            statistics.end_states_count++;
+            _hash_lookup[_grid] = hash;
+            return hash;
+        }
+        for (size_t i = 0; i < next_positions.count; i++)
+        {
+            grid_t next_grid = next_positions.positions[i];
+            Position next_position(next_grid);
+            hash += next_position.calculateHash();
+        }
+        hash &= HASH_MASK;
+        statistics.states_stored_in_hash_map++;
+        _hash_lookup[_grid] = hash;
+        return hash;
     }
 };
 
@@ -267,7 +284,7 @@ int main()
 #endif
 {
     Position initial_position{getInitialPosition()};
-    uint32_t hash = initial_position.getHash();
+    uint32_t hash = initial_position.calculateHash();
     statistics.printStatistics();
     std::cout << hash << std::endl;
 #ifdef BUILD_TESTS
