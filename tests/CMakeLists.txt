@@ -34,6 +34,9 @@ file(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.test.cpp"
 )
 
+# A bit hacky, to build the
+set(TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/coding_game.test.cpp")
+
 # Compile common sources to object files
 add_library(
     common_objects
@@ -62,3 +65,11 @@ add_compile_definitions(
 
 # Add the tests to be run
 gtest_discover_tests(test-all)
+
+# ######################################################################################################################
+add_executable(test-matrix-transformations ${CMAKE_CURRENT_SOURCE_DIR}/src/matrix_transformations.test.cpp)
+add_compile_definitions(
+    PRIVATE
+    BUILD_TESTS=1
+)
+gtest_discover_tests(test-matrix-transformations)
