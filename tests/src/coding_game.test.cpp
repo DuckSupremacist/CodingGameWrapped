@@ -22,18 +22,24 @@ INSTANTIATE_TEST_SUITE_P(
     MainIntegrationTest,
     ::testing::Values(
         // depth, init_hash, expected_output
-        TestParams{20, 60254928, 322444322},  // Test 1;  end states: 2
-        TestParams{20, 506482828, 951223336}, // Test 2;  end states: 6
-        TestParams{1, 555038319, 36379286},   // Test 3;  end states: 2
-        TestParams{1, 616134381, 264239762},  // Test 4;  end states: 11
-        TestParams{8, 606033379, 76092874},   // Test 5;  end states: 1484
-        TestParams{24, 300394867, 661168294}, // Test 6;  end states: 418440394
-        TestParams{36, 604235164, 350917228}, // Test 7;  end states: 1014562252076
-        TestParams{32, 86871, 999653138},     // Test 8;  end states: 104530503002231
-        TestParams{40, 4056899, 521112022},   // Test 9;  end states: 946763082877
-        TestParams{40, 54062794, 667094338},  // Test 10; end states: 559238314648167
-        TestParams{20, 51033165, 738691369},  // Test 11; end states: 4017226136890
-        TestParams{20, 100384866, 808014757}  // Test 12; end states: 950995003182
+        // Custom test cases
+        TestParams{1, 000000000, 111111111},                                       // end states: 9
+        TestParams{1, 666666660, 666666661},                                       // end states: 1
+        TestParams{1, 666666101, 666666020},                                       // end states: 1
+        TestParams{1, 666656101, (666656020 + 666606061 + 666606160) % (1 << 30)}, // end states: 3
+        // Coding game test cases
+        TestParams{20, 60222161, 322444322},  // Test 1;  end states: 2
+        TestParams{20, 506450064, 951223336}, // Test 2;  end states: 6
+        TestParams{1, 555005555, 36379286},   // Test 3;  end states: 2
+        TestParams{1, 616101616, 264239762},  // Test 4;  end states: 11
+        TestParams{8, 606000615, 76092874},   // Test 5;  end states: 1484
+        TestParams{24, 300362102, 661168294}, // Test 6;  end states: 418440394
+        TestParams{36, 604202400, 350917228}, // Test 7;  end states: 1014562252076
+        TestParams{32, 54105, 999653138},     // Test 8;  end states: 104530503002231
+        TestParams{40, 4024134, 521112022},   // Test 9;  end states: 946763082877
+        TestParams{40, 54030030, 667094338},  // Test 10; end states: 559238314648167
+        TestParams{20, 51000401, 738691369},  // Test 11; end states: 4017226136890
+        TestParams{20, 100352100, 808014757}  // Test 12; end states: 950995003182
     )
 );
 
