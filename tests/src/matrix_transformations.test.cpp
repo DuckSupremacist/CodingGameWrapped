@@ -69,7 +69,7 @@ TEST_P(KeyTransformations, BasicCase) {
     std::array<uint32_t, 9> raw_hash = initToRawHash(params.init_position);
     std::array<uint32_t, 9> expected_raw_hash = initToRawHash(params.expected_output);
 
-    std::array<uint32_t, 9> transformed_raw_hash = RawHashTransformer::transform(raw_hash, params.transformation);
+    std::array<uint32_t, 9> transformed_raw_hash = EntryTransformer::transform(raw_hash, params.transformation);
     EXPECT_EQ(expected_raw_hash, transformed_raw_hash) << "Expected: " << std::endl
                                                        << printFromRawHashT(expected_raw_hash) << "Got: " << std::endl
                                                        << printFromRawHashT(transformed_raw_hash);

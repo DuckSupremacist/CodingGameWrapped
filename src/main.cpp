@@ -2,11 +2,16 @@
 #include <functional>
 #include <iostream>
 #include <optional>
+#ifdef BUILD_TESTS
 #include <sstream>
+#endif
 #include <string>
 #include <unordered_map>
+#include <vector>
 
-// #define PRINT_DEBUG 0
+// --------------------------------------------------------------------------
+// Type definitions and constants
+// --------------------------------------------------------------------------
 
 using grid_t = uint64_t;
 using depth_t = uint8_t;
@@ -23,7 +28,7 @@ constexpr size_t GRID_SIZE = GRID_SIDE_SIZE * GRID_SIDE_SIZE;
 constexpr size_t TILE_WIDTH = 3;
 constexpr grid_t TIGHT_TILE_MASK = (1 << TILE_WIDTH) - 1;
 
-constexpr size_t TILE_GRID_OFFSET = TILE_WIDTH + 2; // 4 tiles could be summed up at once (4 = 1 << 2)
+constexpr size_t TILE_GRID_OFFSET = TILE_WIDTH + 2; // 5 bits per tile slot
 constexpr grid_t LOOSE_TILE_MASK = (1 << TILE_GRID_OFFSET) - 1;
 
 constexpr size_t MAX_NEXT_POSITION_COUNT = 16;
@@ -33,53 +38,57 @@ constexpr size_t DEPTH_SHIFT = TILE_GRID_OFFSET * GRID_SIZE;
 constexpr size_t HASH_WIDTH = 30;
 constexpr uint32_t HASH_MASK = (1 << HASH_WIDTH) - 1;
 
+// The board state is stored in the lower (TILE_GRID_OFFSET * GRID_SIZE) bits.
+constexpr grid_t GRID_MASK = (1ul << (TILE_GRID_OFFSET * GRID_SIZE)) - 1;
+constexpr grid_t DEPTH_MASK = ~GRID_MASK;
+
+// --------------------------------------------------------------------------
+// Inline Helper Functions
+// --------------------------------------------------------------------------
+
+inline tile_t getTile(grid_t grid, tile_index_t idx)
+{ return (grid >> (idx * TILE_GRID_OFFSET)) & TIGHT_TILE_MASK; }
+
+inline grid_t setTile(grid_t grid, tile_index_t idx, tile_t value)
+{
+    grid &= ~(static_cast<grid_t>(LOOSE_TILE_MASK) << (idx * TILE_GRID_OFFSET));
+    grid |= (static_cast<grid_t>(value) & LOOSE_TILE_MASK) << (idx * TILE_GRID_OFFSET);
+    return grid;
+}
+
+// --------------------------------------------------------------------------
+// Print Functions (for debugging)
+// --------------------------------------------------------------------------
+
+#ifdef BUILD_TESTS
 std::string printFromGridT(grid_t grid)
 {
     std::stringstream output;
-    output << "Depth: " << (grid >> DEPTH_SHIFT) << std::endl;
-    output << "Grid:" << std::endl << "\t";
-    for (size_t i = 0; i < GRID_SIZE; i++)
-    {
-        output << std::dec << ((grid >> (i * TILE_GRID_OFFSET)) & LOOSE_TILE_MASK) << " ";
-        if (i % GRID_SIDE_SIZE == 2)
-        {
-            output << std::endl << "\t";
-        }
+    output << "Depth: " << (grid >> DEPTH_SHIFT) << "\nGrid:\n\t";
+    for (size_t i = 0; i < GRID_SIZE; i++) {
+        output << ((grid >> (i * TILE_GRID_OFFSET)) & LOOSE_TILE_MASK) << " ";
+        if ((i + 1) % GRID_SIDE_SIZE == 0)
+            output << "\n\t";
     }
-    output << std::endl;
     return output.str();
 }
 
 std::string printFromRawHashT(raw_hash_t hash)
 {
     std::stringstream output;
-    output << "Hash:" << std::endl << "\t";
-    for (size_t i = 0; i < GRID_SIZE; i++)
-    {
-        output << std::dec << hash[i] << " ";
-        if (i % GRID_SIDE_SIZE == 2)
-        {
-            output << std::endl << "\t";
-        }
+    output << "Hash:\n\t";
+    for (size_t i = 0; i < GRID_SIZE; i++) {
+        output << hash[i] << " ";
+        if ((i + 1) % GRID_SIDE_SIZE == 0)
+            output << "\n\t";
     }
-    output << std::endl;
     return output.str();
 }
-
-#ifdef BUILD_TESTS
-struct Statistics
-{
-    size_t end_states_count;
-    size_t states_stored_in_hash_map;
-    size_t states_retrieved_from_hash_map;
-
-    void printStatistics() const {
-        std::cerr << "End states count: " << end_states_count << std::endl;
-        std::cerr << "States stored in hash map: " << states_stored_in_hash_map << std::endl;
-        std::cerr << "States retrieved from hash map: " << states_retrieved_from_hash_map << std::endl;
-    }
-} statistics;
 #endif
+
+// --------------------------------------------------------------------------
+// Transformer Classes (for symmetry handling)
+// --------------------------------------------------------------------------
 
 class Transformer
 {
@@ -117,19 +126,20 @@ class KeyTransformer : public Transformer
     {
         hash_key_t depth_part = key & (0xFFul << DEPTH_SHIFT);
         hash_key_t transformed_key = key;
+        // clang-format off
         if (static_cast<TransformOperations>(t) & H)
         {
             transformed_key =
-                ((transformed_key & 0b11111'11111'11111'00000'00000'00000'00000'00000'00000) >> (TILE_GRID_OFFSET * 6)
-                ) |
+                ((transformed_key & 0b11111'11111'11111'00000'00000'00000'00000'00000'00000)
+                    >> (TILE_GRID_OFFSET * 6)) |
                 (transformed_key & 0b00000'00000'00000'11111'11111'11111'00000'00000'00000) |
                 ((transformed_key & 0b00000'00000'00000'00000'00000'00000'11111'11111'11111) << (TILE_GRID_OFFSET * 6));
         }
         if (static_cast<TransformOperations>(t) & V)
         {
             transformed_key =
-                ((transformed_key & 0b11111'00000'00000'11111'00000'00000'11111'00000'00000) >> (TILE_GRID_OFFSET * 2)
-                ) |
+                ((transformed_key & 0b11111'00000'00000'11111'00000'00000'11111'00000'00000)
+                    >> (TILE_GRID_OFFSET * 2)) |
                 (transformed_key & 0b00000'11111'00000'00000'11111'00000'00000'11111'00000) |
                 ((transformed_key & 0b00000'00000'11111'00000'00000'11111'00000'00000'11111) << (TILE_GRID_OFFSET * 2));
         }
@@ -137,39 +147,25 @@ class KeyTransformer : public Transformer
         {
             transformed_key =
                 (transformed_key & 0b11111'00000'00000'00000'11111'00000'00000'00000'11111) |
-                ((transformed_key & 0b00000'11111'00000'00000'00000'11111'00000'00000'00000) >> (TILE_GRID_OFFSET * 2)
-                ) |
+                ((transformed_key & 0b00000'11111'00000'00000'00000'11111'00000'00000'00000)
+                    >> (TILE_GRID_OFFSET * 2)) |
                 ((transformed_key & 0b00000'00000'00000'11111'00000'00000'00000'11111'00000)
                     << (TILE_GRID_OFFSET * 2)) |
-                ((transformed_key & 0b00000'00000'11111'00000'00000'00000'00000'00000'00000) >> (TILE_GRID_OFFSET * 4)
-                ) |
+                ((transformed_key & 0b00000'00000'11111'00000'00000'00000'00000'00000'00000)
+                    >> (TILE_GRID_OFFSET * 4)) |
                 ((transformed_key & 0b00000'00000'00000'00000'00000'00000'11111'00000'00000) << (TILE_GRID_OFFSET * 4));
         }
+        // clang-format on
         return transformed_key | depth_part;
-    }
-
-    static constexpr hash_key_t reverseTransform(hash_key_t key, Transformation t)
-    {
-        if (t == Transformation::ROT_90)
-        {
-            return transform(key, Transformation::ROT_270);
-        }
-        if (t == Transformation::ROT_270)
-        {
-            return transform(key, Transformation::ROT_90);
-        }
-        return transform(key, t);
     }
 
     static constexpr std::pair<hash_key_t, Transformation> canonical(hash_key_t key)
     {
-        // Find the smallest corner of the key
-        const tile_t first_corner = (key >> TILE_GRID_OFFSET * 8) & TIGHT_TILE_MASK;
-        const tile_t second_corner = (key >> TILE_GRID_OFFSET * 6) & TIGHT_TILE_MASK;
-        const tile_t third_corner = (key >> TILE_GRID_OFFSET * 2) & TIGHT_TILE_MASK;
+        const tile_t first_corner = (key >> (TILE_GRID_OFFSET * 8)) & TIGHT_TILE_MASK;
+        const tile_t second_corner = (key >> (TILE_GRID_OFFSET * 6)) & TIGHT_TILE_MASK;
+        const tile_t third_corner = (key >> (TILE_GRID_OFFSET * 2)) & TIGHT_TILE_MASK;
         const tile_t fourth_corner = key & TIGHT_TILE_MASK;
         const tile_t min_corner = std::min({first_corner, second_corner, third_corner, fourth_corner});
-        // Find the transformation that gives the smallest corner as MSB
         size_t found = 0;
         Transformation transformation = Transformation::ID;
         if (min_corner == first_corner)
@@ -191,22 +187,18 @@ class KeyTransformer : public Transformer
             found++;
             transformation = Transformation::ROT_180;
         }
-        if (found == 1)
+        if (found == 1) [[likely]]
         {
             Transformation transposed =
                 static_cast<Transformation>(static_cast<TransformOperations>(transformation) | T);
-            // Check if the transposed key is smaller than the original key
-            hash_key_t transposed_key = transform(key, transposed);
             hash_key_t transformation_key = transform(key, transformation);
+            hash_key_t transposed_key = transform(transformation_key, Transformation::TRANSPOSE);
             if (transposed_key < transformation_key)
             {
                 return {transposed_key, transposed};
             }
             return {transformation_key, transformation};
         }
-
-        // Two corners are the same, plan B
-        // Loop through all transformations and find the one that gives the smallest corner
         hash_key_t canonical_key = key;
         transformation = Transformation::ID;
         for (Transformation t: TRANSFORMS)
@@ -230,24 +222,48 @@ class EntryTransformer : public Transformer
         raw_hash_t transformed_hash = raw_hash;
         if (static_cast<TransformOperations>(t) & H)
         {
-            transformed_hash = {
-                transformed_hash[6], transformed_hash[7], transformed_hash[8], transformed_hash[3], transformed_hash[4],
-                transformed_hash[5], transformed_hash[0], transformed_hash[1], transformed_hash[2],
-            };
+            transformed_hash =
+                {{
+                     transformed_hash[6],
+                     transformed_hash[7],
+                     transformed_hash[8],
+                     transformed_hash[3],
+                     transformed_hash[4],
+                     transformed_hash[5],
+                     transformed_hash[0],
+                     transformed_hash[1],
+                     transformed_hash[2],
+                 }};
         }
         if (static_cast<TransformOperations>(t) & V)
         {
-            transformed_hash = {
-                transformed_hash[2], transformed_hash[1], transformed_hash[0], transformed_hash[5], transformed_hash[4],
-                transformed_hash[3], transformed_hash[8], transformed_hash[7], transformed_hash[6],
-            };
+            transformed_hash =
+                {{
+                     transformed_hash[2],
+                     transformed_hash[1],
+                     transformed_hash[0],
+                     transformed_hash[5],
+                     transformed_hash[4],
+                     transformed_hash[3],
+                     transformed_hash[8],
+                     transformed_hash[7],
+                     transformed_hash[6],
+                 }};
         }
         if (static_cast<TransformOperations>(t) & T)
         {
-            transformed_hash = {
-                transformed_hash[0], transformed_hash[3], transformed_hash[6], transformed_hash[1], transformed_hash[4],
-                transformed_hash[7], transformed_hash[2], transformed_hash[5], transformed_hash[8],
-            };
+            transformed_hash =
+                {{
+                     transformed_hash[0],
+                     transformed_hash[3],
+                     transformed_hash[6],
+                     transformed_hash[1],
+                     transformed_hash[4],
+                     transformed_hash[7],
+                     transformed_hash[2],
+                     transformed_hash[5],
+                     transformed_hash[8],
+                 }};
         }
         return transformed_hash;
     }
@@ -266,6 +282,11 @@ class EntryTransformer : public Transformer
     }
 };
 
+// --------------------------------------------------------------------------
+// Memoization Hash Lookup – using std::unordered_map. (For extra speed in a contest,
+// you might use a flat-hash implementation.)
+// --------------------------------------------------------------------------
+
 class RawHashLookup
 {
   private:
@@ -278,18 +299,6 @@ class RawHashLookup
         auto it = _hash_lookup.find(transformed_key);
         if (it != _hash_lookup.end())
         {
-#ifdef BUILD_TESTS
-            statistics.states_retrieved_from_hash_map++;
-#ifdef PRINT_DEBUG
-            std::cerr << "Retrieved hash for key:" << std::endl;
-            std::cerr << printFromGridT(key);
-            std::cerr << printFromRawHashT(it->second);
-            std::cerr << "Transformed hash:" << std::endl;
-            std::cerr << "Transformation: " << static_cast<int>(t) << std::endl;
-            std::cerr << printFromGridT(transformed_key);
-            std::cerr << printFromRawHashT(_hash_lookup[transformed_key]);
-#endif
-#endif
             return EntryTransformer::reverseTransform(it->second, t);
         }
         return std::nullopt;
@@ -299,35 +308,134 @@ class RawHashLookup
     {
         auto [transformed_key, t] = KeyTransformer::canonical(key);
         _hash_lookup[transformed_key] = EntryTransformer::transform(hash, t);
-#ifdef BUILD_TESTS
-        statistics.states_stored_in_hash_map++;
-#ifdef PRINT_DEBUG
-        std::cerr << "Stored hash for key:" << std::endl;
-        std::cerr << printFromGridT(key);
-        std::cerr << printFromRawHashT(hash);
-        std::cerr << "Transformed hash:" << std::endl;
-        std::cerr << "Transformation: " << static_cast<int>(t) << std::endl;
-        std::cerr << printFromGridT(transformed_key);
-        std::cerr << printFromRawHashT(_hash_lookup[transformed_key]);
-#endif
-#endif
     }
 
     void clear()
     { _hash_lookup.clear(); }
 };
 
+// --------------------------------------------------------------------------
+// Precomputed LUT for Capturing Combinations per Tile.
+// Each tile index (0–8) uses a predefined required sum code and a shift multiplier.
+// (For instance, tile 0 uses combination SUM_AB with a multiplier of 1, meaning that
+// for capture it sums the two adjacent cells stored in the next 5‐bit slot.)
+// --------------------------------------------------------------------------
+
+struct CaptureLUTEntry
+{
+    sum_t required_sum_code;
+    size_t tile_shift;
+};
+
+enum Sum : uint8_t
+{
+    AB = 0b1100,
+    AC = 0b1010,
+    AD = 0b1001,
+    BC = 0b0110,
+    BD = 0b0101,
+    CD = 0b0011,
+    ABC = 0b1110,
+    ABD = 0b1101,
+    ACD = 0b1011,
+    BCD = 0b0111,
+    ABCD = 0b1111,
+};
+
+// These values were derived from your debug output and final working version.
+constexpr std::array<CaptureLUTEntry, GRID_SIZE> CAPTURE_LUT =
+    {{
+         {.required_sum_code = AB, .tile_shift = 1},   // Tile 0
+         {.required_sum_code = ABC, .tile_shift = 0},  // Tile 1
+         {.required_sum_code = AC, .tile_shift = 1},   // Tile 2
+         {.required_sum_code = ACD, .tile_shift = 0},  // Tile 3
+         {.required_sum_code = ABCD, .tile_shift = 1}, // Tile 4
+         {.required_sum_code = ABD, .tile_shift = 2},  // Tile 5
+         {.required_sum_code = AC, .tile_shift = 3},   // Tile 6
+         {.required_sum_code = ABC, .tile_shift = 4},  // Tile 7
+         {.required_sum_code = AB, .tile_shift = 5},   // Tile 8
+     }};
+
+// --------------------------------------------------------------------------
+// Precomputed static masks for sum combinations
+// --------------------------------------------------------------------------
+constexpr grid_t MASK_OFFSET_A = LOOSE_TILE_MASK;
+constexpr grid_t MASK_OFFSET_B = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 2);
+constexpr grid_t MASK_OFFSET_C = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 4);
+constexpr grid_t MASK_OFFSET_D = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 6);
+
+constexpr grid_t MASK_SUM_AB = MASK_OFFSET_A | MASK_OFFSET_B;
+constexpr grid_t MASK_SUM_AC = MASK_OFFSET_A | MASK_OFFSET_C;
+constexpr grid_t MASK_SUM_AD = MASK_OFFSET_A | MASK_OFFSET_D;
+constexpr grid_t MASK_SUM_BC = MASK_OFFSET_B | MASK_OFFSET_C;
+constexpr grid_t MASK_SUM_BD = MASK_OFFSET_B | MASK_OFFSET_D;
+constexpr grid_t MASK_SUM_CD = MASK_OFFSET_C | MASK_OFFSET_D;
+constexpr grid_t MASK_SUM_ABC = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_C;
+constexpr grid_t MASK_SUM_ABD = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_D;
+constexpr grid_t MASK_SUM_ACD = MASK_OFFSET_A | MASK_OFFSET_C | MASK_OFFSET_D;
+constexpr grid_t MASK_SUM_BCD = MASK_OFFSET_B | MASK_OFFSET_C | MASK_OFFSET_D;
+constexpr grid_t MASK_SUM_ABCD = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_C | MASK_OFFSET_D;
+
+// --------------------------------------------------------------------------
+// Sum Combination LUT
+// --------------------------------------------------------------------------
+struct SumCombo
+{
+    sum_t sum_code;
+    grid_t success_mask;
+};
+
+constexpr std::array<SumCombo, 11> SUM_COMBOS = {{
+                                                     {.sum_code = AB, .success_mask = MASK_SUM_AB},
+                                                     {.sum_code = AC, .success_mask = MASK_SUM_AC},
+                                                     {.sum_code = AD, .success_mask = MASK_SUM_AD},
+                                                     {.sum_code = BC, .success_mask = MASK_SUM_BC},
+                                                     {.sum_code = BD, .success_mask = MASK_SUM_BD},
+                                                     {.sum_code = CD, .success_mask = MASK_SUM_CD},
+                                                     {.sum_code = ABC, .success_mask = MASK_SUM_ABC},
+                                                     {.sum_code = ABD, .success_mask = MASK_SUM_ABD},
+                                                     {.sum_code = ACD, .success_mask = MASK_SUM_ACD},
+                                                     {.sum_code = BCD, .success_mask = MASK_SUM_BCD},
+                                                     {.sum_code = ABCD, .success_mask = MASK_SUM_ABCD},
+                                                 }};
+
+// A mask used to check that the expected cells are present.
+constexpr grid_t CHECK_PRESENCE_MASK = 1ul | (1ul << TILE_GRID_OFFSET) | (1ul << (TILE_GRID_OFFSET * 2)) |
+                                       (1ul << (TILE_GRID_OFFSET * 3)) | (1ul << (TILE_GRID_OFFSET * 4)) |
+                                       (1ul << (TILE_GRID_OFFSET * 5)) | (1ul << (TILE_GRID_OFFSET * 6)) |
+                                       (1ul << (TILE_GRID_OFFSET * 7)) | (1ul << (TILE_GRID_OFFSET * 8));
+
+// --------------------------------------------------------------------------
+// (Optional) Statistics for testing/analysis (not essential for competition)
+// --------------------------------------------------------------------------
+#ifdef BUILD_TESTS
+struct Statistics
+{
+    size_t end_states_count = 0;
+    size_t states_stored_in_hash_map = 0;
+    size_t states_retrieved_from_hash_map = 0;
+    void printStatistics() const {
+        std::cerr << "End states count: " << end_states_count << "\n";
+        std::cerr << "States stored in hash map: " << states_stored_in_hash_map << "\n";
+        std::cerr << "States retrieved from hash map: " << states_retrieved_from_hash_map << "\n";
+    }
+} statistics;
+#endif
+
+// --------------------------------------------------------------------------
+// Class Position – implements state expansion using all improvements.
+// --------------------------------------------------------------------------
 class Position
 {
   private:
     grid_t _grid;
-
     static RawHashLookup _hash_lookup;
 
+    // NextPositions holds a small, fixed-size array of possible next state grids.
     struct NextPositions
     {
-        std::array<grid_t, MAX_NEXT_POSITION_COUNT> positions;
-        size_t count;
+        std::array<grid_t, MAX_NEXT_POSITION_COUNT> positions{};
+        size_t count = 0;
 
         void emplace_back(grid_t position) // NOLINT
         {
@@ -341,122 +449,78 @@ class Position
         { return count == 0; }
     };
 
-    [[nodiscard]] constexpr NextPositions nextPositions() const
+    // Optimized nextPositions() uses the precomputed LUT and dynamic sum arrays.
+    [[nodiscard]] NextPositions nextPositions() const
     {
-        depth_t depth = (_grid >> DEPTH_SHIFT);
-        // If the distance from depth is 0, return an empty vector
-        if (depth == 0)
+        NextPositions next_positions;
+        if ((_grid & DEPTH_MASK) == 0)
         {
-            return {};
+            return next_positions;
         }
 
-        const grid_t &offset_a = _grid;
-        const grid_t offset_b = offset_a >> (TILE_GRID_OFFSET * 2);
-        const grid_t offset_c = offset_a >> (TILE_GRID_OFFSET * 4);
-        const grid_t offset_d = offset_a >> (TILE_GRID_OFFSET * 6);
+        // Mask out the depth bits to work with the board only.
+        const grid_t& board = _grid;
+        const grid_t offset_a = board;
+        const grid_t offset_b = board >> (TILE_GRID_OFFSET * 2);
+        const grid_t offset_c = board >> (TILE_GRID_OFFSET * 4);
+        const grid_t offset_d = board >> (TILE_GRID_OFFSET * 6);
 
-        const grid_t value_present = offset_a | offset_a >> 1 | offset_a >> 2;
+        // Compute a presence mask for the board cells.
+        const grid_t value_present = offset_a | (offset_a >> 1) | (offset_a >> 2);
 
-        enum : sum_t
-        {
-            SUM_AB = 0b1100,
-            SUM_AC = 0b1010,
-            SUM_AD = 0b1001,
-            SUM_BC = 0b0110,
-            SUM_BD = 0b0101,
-            SUM_CD = 0b0011,
-            SUM_ABC = 0b1110,
-            SUM_ABD = 0b1101,
-            SUM_ACD = 0b1011,
-            SUM_BCD = 0b0111,
-            SUM_ABCD = 0b1111,
-        };
-        struct SumCombo
-        {
-            sum_t sum_code;
-            grid_t success_mask;
+        // Precompute dynamic sums for each sum combination:
+        std::array<grid_t, 11> dynamic_sums{};
+        dynamic_sums[0] = offset_a + offset_b;
+        dynamic_sums[1] = offset_a + offset_c;
+        dynamic_sums[2] = offset_a + offset_d;
+        dynamic_sums[3] = offset_b + offset_c;
+        dynamic_sums[4] = offset_b + offset_d;
+        dynamic_sums[5] = offset_c + offset_d;
+        dynamic_sums[6] = offset_a + offset_b + offset_c;
+        dynamic_sums[7] = offset_a + offset_b + offset_d;
+        dynamic_sums[8] = offset_a + offset_c + offset_d;
+        dynamic_sums[9] = offset_b + offset_c + offset_d;
+        dynamic_sums[10] = offset_a + offset_b + offset_c + offset_d;
 
-            constexpr SumCombo(sum_t sum, grid_t mask) : sum_code(sum), success_mask(mask)
-            {}
-        };
-        constexpr grid_t MASK_OFFSET_A = LOOSE_TILE_MASK;
-        constexpr grid_t MASK_OFFSET_B = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 2);
-        constexpr grid_t MASK_OFFSET_C = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 4);
-        constexpr grid_t MASK_OFFSET_D = LOOSE_TILE_MASK << (TILE_GRID_OFFSET * 6);
-
-        constexpr grid_t CHECK_PRESENCE_MASK = 1ul | (1ul << TILE_GRID_OFFSET) | (1ul << (TILE_GRID_OFFSET * 2)) |
-                                               (1ul << (TILE_GRID_OFFSET * 3)) | (1ul << (TILE_GRID_OFFSET * 4)) |
-                                               (1ul << (TILE_GRID_OFFSET * 5)) | (1ul << (TILE_GRID_OFFSET * 6)) |
-                                               (1ul << (TILE_GRID_OFFSET * 7)) | (1ul << (TILE_GRID_OFFSET * 8));
-
-        constexpr grid_t MASK_SUM_AB = MASK_OFFSET_A | MASK_OFFSET_B;
-        constexpr grid_t MASK_SUM_AC = MASK_OFFSET_A | MASK_OFFSET_C;
-        constexpr grid_t MASK_SUM_AD = MASK_OFFSET_A | MASK_OFFSET_D;
-        constexpr grid_t MASK_SUM_BC = MASK_OFFSET_B | MASK_OFFSET_C;
-        constexpr grid_t MASK_SUM_BD = MASK_OFFSET_B | MASK_OFFSET_D;
-        constexpr grid_t MASK_SUM_CD = MASK_OFFSET_C | MASK_OFFSET_D;
-        constexpr grid_t MASK_SUM_ABC = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_C;
-        constexpr grid_t MASK_SUM_ABD = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_D;
-        constexpr grid_t MASK_SUM_ACD = MASK_OFFSET_A | MASK_OFFSET_C | MASK_OFFSET_D;
-        constexpr grid_t MASK_SUM_BCD = MASK_OFFSET_B | MASK_OFFSET_C | MASK_OFFSET_D;
-        constexpr grid_t MASK_SUM_ABCD = MASK_OFFSET_A | MASK_OFFSET_B | MASK_OFFSET_C | MASK_OFFSET_D;
-
-        const std::array<std::pair<SumCombo, grid_t>, 11> sums = {
-            std::pair{SumCombo{SUM_AB, MASK_SUM_AB}, offset_a + offset_b},
-            std::pair{SumCombo{SUM_AC, MASK_SUM_AC}, offset_a + offset_c},
-            std::pair{SumCombo{SUM_AD, MASK_SUM_AD}, offset_a + offset_d},
-            std::pair{SumCombo{SUM_BC, MASK_SUM_BC}, offset_b + offset_c},
-            std::pair{SumCombo{SUM_BD, MASK_SUM_BD}, offset_b + offset_d},
-            std::pair{SumCombo{SUM_CD, MASK_SUM_CD}, offset_c + offset_d},
-            std::pair{SumCombo{SUM_ABC, MASK_SUM_ABC}, offset_a + offset_b + offset_c},
-            std::pair{SumCombo{SUM_ABD, MASK_SUM_ABD}, offset_a + offset_b + offset_d},
-            std::pair{SumCombo{SUM_ACD, MASK_SUM_ACD}, offset_a + offset_c + offset_d},
-            std::pair{SumCombo{SUM_BCD, MASK_SUM_BCD}, offset_b + offset_c + offset_d},
-            std::pair{SumCombo{SUM_ABCD, MASK_SUM_ABCD}, offset_a + offset_b + offset_c + offset_d},
-        };
-
-        constexpr std::array<std::pair<sum_t, size_t>, GRID_SIZE> TILE_SUM_COMBINATIONS = {
-            std::pair{SUM_AB, 1}, std::pair{SUM_ABC, 0}, std::pair{SUM_AC, 1},
-            std::pair{SUM_ACD, 0}, std::pair{SUM_ABCD, 1}, std::pair{SUM_ABD, 2},
-            std::pair{SUM_AC, 3}, std::pair{SUM_ABC, 4}, std::pair{SUM_AB, 5},
-        };
-
-        NextPositions next_positions{};
+        // Loop over every tile in the grid.
         for (tile_index_t i = 0; i < GRID_SIZE; ++i)
         {
-            const tile_t tile = (_grid >> (i * TILE_GRID_OFFSET)) & TIGHT_TILE_MASK;
+            tile_t tile = getTile(_grid, i);
             if (tile != 0)
             {
                 continue;
-            }
-            bool found_sum = false;
-            for (const auto &[sum_combo, sum]: sums)
+            } // Tile already occupied.
+            bool found_capture = false;
+            // Get the precomputed Capture LUT entry for this tile.
+            auto lut_entry = CAPTURE_LUT[i];
+            // Iterate over each capturing combination.
+            for (size_t combo_idx = 0; combo_idx < SUM_COMBOS.size(); ++combo_idx)
             {
-                if ((sum_combo.sum_code & TILE_SUM_COMBINATIONS[i].first) ==
-                    sum_combo.sum_code) // Verify sum is valid for this tile
-                {
-                    const grid_t target_mask = sum_combo.success_mask
-                        << (TILE_SUM_COMBINATIONS[i].second * TILE_GRID_OFFSET);
-                    const grid_t target_presence_mask = target_mask & CHECK_PRESENCE_MASK;
-                    if ((value_present & target_presence_mask) != target_presence_mask)
-                    {
-                        // No value to sum
-                        continue;
-                    }
-                    tile_t sum_value = sum >> (TILE_SUM_COMBINATIONS[i].second * TILE_GRID_OFFSET) & LOOSE_TILE_MASK;
-                    if (sum_value <= 6)
-                    {
-                        found_sum = true;
-                        grid_t new_grid = _grid & ~target_mask;
-                        new_grid |= (static_cast<grid_t>(sum_value) << (i * TILE_GRID_OFFSET));
-                        new_grid -= (1ul << DEPTH_SHIFT);
-                        next_positions.emplace_back(new_grid);
-                    }
-                }
+                const SumCombo &combo = SUM_COMBOS[combo_idx];
+                // Check if the sum code combination is valid for this tile.
+                if ((combo.sum_code & lut_entry.required_sum_code) != combo.sum_code)
+                    continue;
+                // Calculate the target mask; shift the success mask by the tile-specific offset.
+                grid_t target_mask = combo.success_mask << (lut_entry.tile_shift * TILE_GRID_OFFSET);
+                grid_t target_presence_mask = target_mask & CHECK_PRESENCE_MASK;
+                if ((value_present & target_presence_mask) != target_presence_mask)
+                    continue; // Not all required cells are non-empty.
+                // Extract the dynamic sum for this capturing combination.
+                tile_t sum_value =
+                    (dynamic_sums[combo_idx] >> (lut_entry.tile_shift * TILE_GRID_OFFSET)) & LOOSE_TILE_MASK;
+                if (sum_value > 6)
+                    continue;
+                // Valid capture move: remove the captured tiles and place a die showing the sum.
+                grid_t new_grid = _grid & ~target_mask;
+                new_grid = setTile(new_grid, i, sum_value);
+                new_grid -= (1ul << DEPTH_SHIFT); // Decrement depth.
+                found_capture = true;
+                next_positions.emplace_back(new_grid);
             }
-            if (!found_sum)
+            if (!found_capture)
             {
-                grid_t new_grid = _grid | (1ul << (i * TILE_GRID_OFFSET));
+                // No capture was possible: perform non-capturing move by placing a '1'.
+                grid_t new_grid = setTile(_grid, i, 1);
                 new_grid -= (1ul << DEPTH_SHIFT);
                 next_positions.emplace_back(new_grid);
             }
@@ -469,45 +533,34 @@ class Position
     { _hash_lookup.clear(); }
 
     explicit Position(grid_t position) : _grid(position)
-    {
-#ifdef BUILD_TESTS
-#ifdef PRINT_DEBUG
-        std::cerr << "Position created:" << std::endl;
-        std::cerr << printFromGridT(_grid);
-#endif
-#endif
-    }
+    {}
 
     [[nodiscard]] raw_hash_t produceRawHash() const
     {
         raw_hash_t hash{};
-        for (size_t i = 0; i < GRID_SIZE; i++)
+        for (tile_index_t i = 0; i < GRID_SIZE; i++)
         {
-            hash[i] = (_grid >> (i * TILE_GRID_OFFSET)) & TIGHT_TILE_MASK;
+            hash[i] = getTile(_grid, i);
         }
         return hash;
     }
 
-    [[nodiscard]] uint32_t outputHash()
+    uint32_t outputHash()
     {
         raw_hash_t hash = calculateHash();
         uint32_t clean_hash = 0;
-        for (size_t i = 0; i < GRID_SIZE; i++)
+        for (tile_index_t i = 0; i < GRID_SIZE; i++)
         {
-            clean_hash *= 10;
-            clean_hash += hash[i];
+            clean_hash = clean_hash * 10 + hash[i];
         }
         return clean_hash & HASH_MASK;
     }
 
     raw_hash_t calculateHash()
     {
+        if (auto cached = _hash_lookup.retrieve(_grid); cached.has_value())
         {
-            std::optional<raw_hash_t> hash = _hash_lookup.retrieve(_grid);
-            if (hash.has_value())
-            {
-                return hash.value();
-            }
+            return cached.value();
         }
 
         raw_hash_t hash{};
@@ -523,11 +576,9 @@ class Position
         }
         for (size_t i = 0; i < next_positions.count; i++)
         {
-            grid_t next_grid = next_positions.positions[i];
-            Position next_position(next_grid);
-            // Sum the hash of the next position
+            Position next_position(next_positions.positions[i]);
             raw_hash_t next_hash = next_position.calculateHash();
-            for (size_t j = 0; j < GRID_SIZE; j++)
+            for (tile_index_t j = 0; j < GRID_SIZE; j++)
             {
                 hash[j] += next_hash[j];
             }
@@ -539,27 +590,29 @@ class Position
 
 RawHashLookup Position::_hash_lookup;
 
+// --------------------------------------------------------------------------
+// getInitialPosition() reads input and builds the initial grid state.
+// --------------------------------------------------------------------------
 grid_t getInitialPosition()
 {
     grid_t grid = 0;
     int value;
     std::cin >> value;
     std::cin.ignore();
-
     depth_t distance_from_depth = value;
-
-    for (size_t i = 0; i < GRID_SIZE; i++)
+    for (tile_index_t i = 0; i < GRID_SIZE; i++)
     {
         std::cin >> value;
         std::cin.ignore();
-
-        grid |= (value & TIGHT_TILE_MASK) << (i * TILE_GRID_OFFSET);
+        grid = setTile(grid, i, value & TIGHT_TILE_MASK);
     }
-    grid |= (static_cast<uint64_t>(distance_from_depth) << DEPTH_SHIFT);
-
+    grid |= (static_cast<grid_t>(distance_from_depth) << DEPTH_SHIFT);
     return grid;
 }
 
+// --------------------------------------------------------------------------
+// Main function
+// --------------------------------------------------------------------------
 #ifdef BUILD_TESTS
 int testMain()
 #else
@@ -567,7 +620,8 @@ int testMain()
 int main()
 #endif
 {
-    Position initial_position{getInitialPosition()};
+    grid_t initial_grid = getInitialPosition();
+    Position initial_position(initial_grid);
     uint32_t hash = initial_position.outputHash();
     std::cout << hash << std::endl;
 #ifdef BUILD_TESTS
