@@ -32,7 +32,7 @@ target_include_directories(
 target_compile_options(
     ${EXEC_NAME}
     PUBLIC -O3
-           # -Wall
+           -Wall
            -Woverloaded-virtual
            # -Wno-unused-function -Wmissing-declarations
            -Werror

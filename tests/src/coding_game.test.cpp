@@ -15,13 +15,13 @@ struct TestParams
     uint32_t expected_output;
 };
 
-class KeyTransformations : public ::testing::TestWithParam<TestParams>
+class MainIntegrationTest : public ::testing::TestWithParam<TestParams>
 {};
 
 // Test cases
 INSTANTIATE_TEST_SUITE_P(
     MyParamGroup,
-    KeyTransformations,
+    MainIntegrationTest,
     ::testing::Values(
         // depth, init_hash, expected_output
         // Custom test cases
@@ -45,7 +45,7 @@ INSTANTIATE_TEST_SUITE_P(
     )
 );
 
-TEST_P(KeyTransformations, BasicCase) {
+TEST_P(MainIntegrationTest, BasicCase) {
     /* =============== */
     /* Retrieve Params */
     /* =============== */
